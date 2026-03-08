@@ -8,6 +8,14 @@ import os
 import json
 import hashlib
 from pathlib import Path
+
+# Load .env file if present (for local development)
+try:
+    from dotenv import load_dotenv
+    load_dotenv(Path(__file__).parent.parent / ".env")
+except ImportError:
+    pass
+
 from anthropic import Anthropic
 
 _client: Anthropic | None = None

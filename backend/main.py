@@ -84,7 +84,10 @@ async def upload_file(file: UploadFile = File(...)):
         raise HTTPException(400, "Could not extract enough text from this file.")
 
     # Extract book metadata using LLM
-    book_metadata = extract_book_metadata(full_text)
+    try:
+        book_metadata = extract_book_metadata(full_text)
+    except Exception as e:
+        raise HTTPException(500, f"Failed to analyze book metadata: {e}")
 
     # Create session with metadata (analysis happens after user confirms)
     session = create_session(document_name=file.filename, pdf_path=str(dest))
@@ -110,11 +113,14 @@ def confirm_metadata(session_id: str, body: MetadataConfirmation):
     session.book_metadata["author"] = body.author
 
     # Now run full analysis with confirmed metadata
-    full_text = extract_text(session.pdf_path)
-    concepts = extract_concepts(full_text, book_metadata=session.book_metadata)
-    dep_graph = build_dependency_graph(concepts)
-    concept_map = build_concept_map(concepts)
-    questions = generate_questions(concepts, book_metadata=session.book_metadata)
+    try:
+        full_text = extract_text(session.pdf_path)
+        concepts = extract_concepts(full_text, book_metadata=session.book_metadata)
+        dep_graph = build_dependency_graph(concepts)
+        concept_map = build_concept_map(concepts)
+        questions = generate_questions(concepts, book_metadata=session.book_metadata)
+    except Exception as e:
+        raise HTTPException(500, f"Analysis failed: {e}")
 
     session.concepts = [asdict(c) for c in concepts]
     session.dependency_graph = dep_graph
