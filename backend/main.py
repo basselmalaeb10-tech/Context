@@ -7,7 +7,8 @@ from dataclasses import asdict
 
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from services.pdf_parser import extract_text, extract_pages
@@ -20,13 +21,16 @@ app = FastAPI(title="Context — AI Reading Assistant")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=["http://localhost:3000", "http://localhost:8000"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 UPLOAD_DIR = Path(__file__).parent / "uploads"
 UPLOAD_DIR.mkdir(exist_ok=True)
+
+# Serve frontend static build if it exists
+FRONTEND_DIST = Path(__file__).parent.parent / "frontend" / "dist"
 
 
 # --- Models ---
@@ -197,3 +201,17 @@ def update_page(session_id: str, page: int = 1):
 def get_sessions():
     """List all sessions."""
     return {"sessions": list_sessions()}
+
+
+# --- Serve frontend SPA ---
+# Mount static assets if the frontend has been built
+if FRONTEND_DIST.exists():
+    app.mount("/assets", StaticFiles(directory=str(FRONTEND_DIST / "assets")), name="static")
+
+    @app.get("/{full_path:path}")
+    def serve_spa(full_path: str):
+        """Serve the frontend SPA for all non-API routes."""
+        index = FRONTEND_DIST / "index.html"
+        if index.exists():
+            return HTMLResponse(index.read_text())
+        raise HTTPException(404, "Frontend not built. Run: cd frontend && npm run build")
