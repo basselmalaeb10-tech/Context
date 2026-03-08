@@ -80,3 +80,19 @@ export async function checkNudge(sessionId: string, page: number) {
 export async function updatePage(sessionId: string, page: number) {
   await fetch(`${BASE}/sessions/${sessionId}/page?page=${page}`, { method: 'PUT' });
 }
+
+export async function webResearch(sessionId: string, text: string, page: number) {
+  const res = await fetch(`${BASE}/sessions/${sessionId}/research`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text, page }),
+  });
+  if (!res.ok) throw new Error('Research failed');
+  return res.json();
+}
+
+export async function bookResearch(sessionId: string) {
+  const res = await fetch(`${BASE}/sessions/${sessionId}/book-research`);
+  if (!res.ok) throw new Error('Book research failed');
+  return res.json();
+}

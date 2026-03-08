@@ -5,11 +5,20 @@ Generates real, tailored explanations using Claude based on:
 - the reader's familiarity profile
 - the document's concept dependency graph
 - the book's metadata and domain
+- (optionally) web research from book sites and encyclopedias
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from .llm import call_llm
+
+
+@dataclass
+class WebSource:
+    title: str
+    url: str
+    snippet: str
+    source: str  # domain name
 
 
 @dataclass
@@ -18,6 +27,7 @@ class Explanation:
     mode: str  # "quick", "deep", "prerequisites", "why_it_matters"
     content: str
     related_concepts: list[str]
+    web_sources: list[WebSource] = field(default_factory=list)
 
 
 def _find_relevant_concepts(
@@ -57,8 +67,14 @@ def generate_explanation(
     concepts: list[dict],
     dependency_graph: dict[str, list[str]],
     book_metadata: dict | None = None,
+    use_web: bool = True,
 ) -> Explanation:
-    """Generate a context-aware explanation for selected text using LLM."""
+    """Generate a context-aware explanation for selected text.
+
+    When use_web=True, enriches the explanation with web research from
+    book sites, encyclopedias, and educational resources — reducing
+    reliance on LLM API credits.
+    """
     relevant = _find_relevant_concepts(selected_text, concepts)
     related_names = [c["name"] for c in relevant]
 
@@ -92,6 +108,27 @@ def generate_explanation(
     if book_metadata:
         book_context = f'\nBook: "{book_metadata.get("title", "")}" by {book_metadata.get("author", "")}\nDomain: {book_metadata.get("domain", "")}\n'
 
+    # --- Web research (free, no API credits needed) ---
+    web_context = ""
+    web_sources: list[WebSource] = []
+    if use_web:
+        try:
+            from .web_research import research_topic
+            research = research_topic(
+                text=selected_text,
+                book_title=book_metadata.get("title", "") if book_metadata else "",
+                book_author=book_metadata.get("author", "") if book_metadata else "",
+                book_domain=book_metadata.get("domain", "") if book_metadata else "",
+            )
+            if research.summary:
+                web_context = f"\n\nWEB RESEARCH (use this to improve your explanation):\n{research.summary[:3000]}\n"
+            web_sources = [
+                WebSource(title=r.title, url=r.url, snippet=r.snippet, source=r.source)
+                for r in research.results[:5]
+            ]
+        except Exception:
+            pass  # Web research is best-effort
+
     mode_instruction = MODE_INSTRUCTIONS.get(mode, MODE_INSTRUCTIONS["quick"])
 
     prompt = f"""{book_context}
@@ -100,7 +137,7 @@ SURROUNDING CONTEXT:
 
 SELECTED TEXT (this is what the reader highlighted and wants explained):
 "{selected_text}"
-{concept_context}
+{concept_context}{web_context}
 
 INSTRUCTION: {mode_instruction}
 
@@ -110,7 +147,7 @@ Respond directly with the explanation. Do not include headers, labels, or meta-c
 
     content = call_llm(
         prompt=prompt,
-        system="You are a knowledgeable reading companion helping someone understand a book. Your explanations should be clear, accurate, and helpful. Draw on your knowledge of the subject matter to provide real, substantive explanations — not vague platitudes. If the text references specific thinkers, theories, or events, explain them concretely.",
+        system="You are a knowledgeable reading companion helping someone understand a book. Your explanations should be clear, accurate, and helpful. Draw on your knowledge of the subject matter to provide real, substantive explanations — not vague platitudes. If the text references specific thinkers, theories, or events, explain them concretely. When web research is provided, incorporate relevant information from it to give a more thorough and grounded answer.",
         use_cache=False,  # Explanations should always be fresh
     )
 
@@ -119,6 +156,7 @@ Respond directly with the explanation. Do not include headers, labels, or meta-c
         mode=mode,
         content=content,
         related_concepts=related_names,
+        web_sources=web_sources,
     )
 
 

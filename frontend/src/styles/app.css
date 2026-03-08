@@ -854,6 +854,114 @@ body {
   color: var(--text-secondary);
 }
 
+/* ===== WEB SOURCES & RESEARCH ===== */
+.research-btn {
+  background: #eef6ff;
+  border-color: #b8d4f0;
+  color: #1a56db;
+}
+.research-btn:hover {
+  border-color: #1a56db;
+}
+.research-btn.active {
+  background: #1a56db;
+  color: white;
+  border-color: #1a56db;
+}
+
+.web-sources {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+.web-sources-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+}
+.web-source-link {
+  display: flex;
+  flex-direction: column;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  text-decoration: none;
+  transition: background 0.15s;
+  margin-bottom: 4px;
+}
+.web-source-link:hover {
+  background: var(--bg);
+}
+.web-source-domain {
+  font-size: 11px;
+  color: #1a56db;
+  margin-bottom: 2px;
+}
+.web-source-title {
+  font-size: 13px;
+  color: var(--text);
+  line-height: 1.3;
+}
+
+.research-section {
+  border-top: 1px solid var(--border);
+  padding: 0;
+}
+.research-header {
+  padding: 12px 18px;
+  border-bottom: 1px solid var(--border);
+}
+.research-title {
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-muted);
+}
+.research-results {
+  padding: 8px 18px;
+  max-height: 300px;
+  overflow-y: auto;
+}
+.research-result {
+  display: flex;
+  flex-direction: column;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+  text-decoration: none;
+  transition: opacity 0.15s;
+}
+.research-result:last-child {
+  border-bottom: none;
+}
+.research-result:hover {
+  opacity: 0.8;
+}
+.research-result-domain {
+  font-size: 11px;
+  color: #1a56db;
+  margin-bottom: 2px;
+}
+.research-result-title {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+  margin-bottom: 4px;
+  line-height: 1.3;
+}
+.research-result-snippet {
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+.research-empty {
+  padding: 16px 18px;
+  font-size: 13px;
+  color: var(--text-muted);
+  text-align: center;
+}
+
 /* ===== RESPONSIVE ===== */
 @media (max-width: 768px) {
   .concept-sidebar {

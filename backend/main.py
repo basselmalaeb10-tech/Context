@@ -18,6 +18,7 @@ from services.concept_engine import (
 )
 from services.calibration import generate_questions, build_reader_profile
 from services.explanation import generate_explanation, detect_difficult_passage
+from services.web_research import research_topic, research_book_overview
 from services.session import create_session, save_session, load_session, list_sessions
 
 app = FastAPI(title="Context — AI Reading Assistant")
@@ -239,6 +240,60 @@ def explain(session_id: str, body: ExplanationRequest):
         "mode": result.mode,
         "content": result.content,
         "related_concepts": result.related_concepts,
+        "web_sources": [
+            {"title": s.title, "url": s.url, "snippet": s.snippet, "source": s.source}
+            for s in result.web_sources
+        ],
+    }
+
+
+class ResearchRequest(BaseModel):
+    text: str
+    page: int = 1
+
+
+@app.post("/api/sessions/{session_id}/research")
+def web_research(session_id: str, body: ResearchRequest):
+    """Search the web for context about selected text — no LLM credits needed."""
+    session = load_session(session_id)
+    if not session:
+        raise HTTPException(404, "Session not found.")
+
+    result = research_topic(
+        text=body.text,
+        book_title=session.book_metadata.get("title", ""),
+        book_author=session.book_metadata.get("author", ""),
+        book_domain=session.book_metadata.get("domain", ""),
+    )
+
+    return {
+        "query": body.text,
+        "results": [
+            {"title": r.title, "url": r.url, "snippet": r.snippet, "source": r.source}
+            for r in result.results
+        ],
+        "summary": result.summary[:3000] if result.summary else "",
+    }
+
+
+@app.get("/api/sessions/{session_id}/book-research")
+def book_research(session_id: str):
+    """Get web research about the book itself (summaries, reviews, analysis)."""
+    session = load_session(session_id)
+    if not session:
+        raise HTTPException(404, "Session not found.")
+
+    result = research_book_overview(
+        book_title=session.book_metadata.get("title", ""),
+        book_author=session.book_metadata.get("author", ""),
+        book_domain=session.book_metadata.get("domain", ""),
+    )
+
+    return {
+        "results": [
+            {"title": r.title, "url": r.url, "snippet": r.snippet, "source": r.source}
+            for r in result.results
+        ],
     }
 
 
