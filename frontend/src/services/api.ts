@@ -1,10 +1,20 @@
 const BASE = '/api';
 
-export async function uploadPdf(file: File) {
+export async function uploadFile(file: File) {
   const form = new FormData();
   form.append('file', file);
   const res = await fetch(`${BASE}/upload`, { method: 'POST', body: form });
   if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+export async function confirmMetadata(sessionId: string, title: string, author: string) {
+  const res = await fetch(`${BASE}/sessions/${sessionId}/confirm`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ title, author }),
+  });
+  if (!res.ok) throw new Error('Analysis failed');
   return res.json();
 }
 
@@ -27,6 +37,12 @@ export async function submitCalibration(sessionId: string, answers: Record<strin
 export async function getPages(sessionId: string) {
   const res = await fetch(`${BASE}/sessions/${sessionId}/pages`);
   if (!res.ok) throw new Error('Failed to load pages');
+  return res.json();
+}
+
+export async function getPageConcepts(sessionId: string, page: number) {
+  const res = await fetch(`${BASE}/sessions/${sessionId}/page-concepts?page=${page}`);
+  if (!res.ok) return { concepts: [] };
   return res.json();
 }
 

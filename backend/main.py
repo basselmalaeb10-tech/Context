@@ -12,7 +12,10 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from services.pdf_parser import extract_text, extract_pages
-from services.concept_engine import extract_concepts, build_dependency_graph
+from services.concept_engine import (
+    extract_concepts, extract_book_metadata, build_dependency_graph,
+    build_concept_map, extract_page_concepts,
+)
 from services.calibration import generate_questions, build_reader_profile
 from services.explanation import generate_explanation, detect_difficult_passage
 from services.session import create_session, save_session, load_session, list_sessions
@@ -28,6 +31,8 @@ app.add_middleware(
 
 UPLOAD_DIR = Path(__file__).parent / "uploads"
 UPLOAD_DIR.mkdir(exist_ok=True)
+
+ALLOWED_EXTENSIONS = {".pdf", ".epub"}
 
 # Serve frontend static build if it exists
 FRONTEND_DIST = Path(__file__).parent.parent / "frontend" / "dist"
@@ -46,6 +51,11 @@ class ExplanationRequest(BaseModel):
     mode: str = "quick"  # "quick", "deep", "prerequisites", "why_it_matters"
 
 
+class MetadataConfirmation(BaseModel):
+    title: str
+    author: str
+
+
 # --- Endpoints ---
 
 @app.get("/api/health")
@@ -54,36 +64,69 @@ def health():
 
 
 @app.post("/api/upload")
-async def upload_pdf(file: UploadFile = File(...)):
-    """Upload a PDF and trigger document analysis."""
-    if not file.filename or not file.filename.lower().endswith(".pdf"):
-        raise HTTPException(400, "Only PDF files are accepted.")
+async def upload_file(file: UploadFile = File(...)):
+    """Upload a PDF or EPUB and extract book metadata for confirmation."""
+    if not file.filename:
+        raise HTTPException(400, "No filename provided.")
+
+    ext = Path(file.filename).suffix.lower()
+    if ext not in ALLOWED_EXTENSIONS:
+        raise HTTPException(400, f"Only {', '.join(ALLOWED_EXTENSIONS)} files are accepted.")
 
     # Save the file
     dest = UPLOAD_DIR / file.filename
     with open(dest, "wb") as f:
         shutil.copyfileobj(file.file, f)
 
-    # Extract text and analyze
+    # Extract text
     full_text = extract_text(str(dest))
     if len(full_text.strip()) < 50:
-        raise HTTPException(400, "Could not extract enough text from this PDF.")
+        raise HTTPException(400, "Could not extract enough text from this file.")
 
-    concepts = extract_concepts(full_text)
-    dep_graph = build_dependency_graph(concepts)
-    questions = generate_questions(concepts)
+    # Extract book metadata using LLM
+    book_metadata = extract_book_metadata(full_text)
 
-    # Create session
+    # Create session with metadata (analysis happens after user confirms)
     session = create_session(document_name=file.filename, pdf_path=str(dest))
-    session.concepts = [asdict(c) for c in concepts]  # type: ignore
-    session.dependency_graph = dep_graph
-    session.calibration_questions = [asdict(q) for q in questions]  # type: ignore
+    session.book_metadata = book_metadata
     save_session(session)
 
     return {
         "session_id": session.id,
         "document_name": session.document_name,
+        "book_metadata": book_metadata,
+    }
+
+
+@app.post("/api/sessions/{session_id}/confirm")
+def confirm_metadata(session_id: str, body: MetadataConfirmation):
+    """User confirms/corrects book metadata, then full analysis runs."""
+    session = load_session(session_id)
+    if not session:
+        raise HTTPException(404, "Session not found.")
+
+    # Update metadata with user corrections
+    session.book_metadata["title"] = body.title
+    session.book_metadata["author"] = body.author
+
+    # Now run full analysis with confirmed metadata
+    full_text = extract_text(session.pdf_path)
+    concepts = extract_concepts(full_text, book_metadata=session.book_metadata)
+    dep_graph = build_dependency_graph(concepts)
+    concept_map = build_concept_map(concepts)
+    questions = generate_questions(concepts, book_metadata=session.book_metadata)
+
+    session.concepts = [asdict(c) for c in concepts]
+    session.dependency_graph = dep_graph
+    session.concept_map = concept_map
+    session.calibration_questions = [asdict(q) for q in questions]
+    save_session(session)
+
+    return {
+        "session_id": session.id,
+        "book_metadata": session.book_metadata,
         "concept_count": len(concepts),
+        "concept_map": concept_map,
         "calibration_questions": session.calibration_questions,
     }
 
@@ -114,7 +157,9 @@ def get_session(session_id: str):
     return {
         "id": session.id,
         "document_name": session.document_name,
+        "book_metadata": session.book_metadata,
         "concept_count": len(session.concepts),
+        "concept_map": session.concept_map,
         "is_calibrated": bool(session.reader_profile),
         "current_page": session.current_page,
     }
@@ -122,13 +167,13 @@ def get_session(session_id: str):
 
 @app.get("/api/sessions/{session_id}/pdf")
 def serve_pdf(session_id: str):
-    """Serve the uploaded PDF for the reader view."""
+    """Serve the uploaded file for the reader view."""
     session = load_session(session_id)
     if not session:
         raise HTTPException(404, "Session not found.")
     if not os.path.exists(session.pdf_path):
-        raise HTTPException(404, "PDF file not found.")
-    return FileResponse(session.pdf_path, media_type="application/pdf")
+        raise HTTPException(404, "File not found.")
+    return FileResponse(session.pdf_path)
 
 
 @app.get("/api/sessions/{session_id}/pages")
@@ -139,6 +184,31 @@ def get_pages(session_id: str):
         raise HTTPException(404, "Session not found.")
     pages = extract_pages(session.pdf_path)
     return {"pages": pages, "total_pages": len(pages)}
+
+
+@app.get("/api/sessions/{session_id}/page-concepts")
+def get_page_concepts(session_id: str, page: int = 1):
+    """Get concepts relevant to a specific page for the sidebar."""
+    session = load_session(session_id)
+    if not session:
+        raise HTTPException(404, "Session not found.")
+
+    pages = extract_pages(session.pdf_path)
+    page_data = next((p for p in pages if p["page"] == page), None)
+    if not page_data:
+        return {"concepts": []}
+
+    from services.concept_engine import Concept
+    all_concepts = [Concept(**c) for c in session.concepts]
+
+    page_concepts = extract_page_concepts(
+        page_text=page_data["text"],
+        page_number=page,
+        all_concepts=all_concepts,
+        book_metadata=session.book_metadata,
+    )
+
+    return {"concepts": page_concepts, "page": page}
 
 
 @app.post("/api/sessions/{session_id}/explain")
@@ -155,6 +225,7 @@ def explain(session_id: str, body: ExplanationRequest):
         reader_profile=session.reader_profile,
         concepts=session.concepts,
         dependency_graph=session.dependency_graph,
+        book_metadata=session.book_metadata,
     )
 
     return {

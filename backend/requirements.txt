@@ -3,3 +3,5 @@ uvicorn==0.34.0
 pymupdf==1.25.3
 python-multipart==0.0.20
 pydantic==2.10.4
+anthropic>=0.40.0
+ebooklib>=0.18

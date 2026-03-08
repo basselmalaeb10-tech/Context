@@ -6,6 +6,7 @@ interface Question {
   concept_name: string
   question: string
   options: string[]
+  context_hint?: string
 }
 
 interface Props {
@@ -65,6 +66,9 @@ export default function Calibration({ sessionId, documentName, questions, onComp
 
         <div className="question-card">
           <p className="question-text">{question.question}</p>
+          {question.context_hint && (
+            <p className="question-hint">{question.context_hint}</p>
+          )}
           <div className="options">
             {question.options.map((opt, i) => (
               <button

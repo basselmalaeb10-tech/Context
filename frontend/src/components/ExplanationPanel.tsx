@@ -38,7 +38,7 @@ export default function ExplanationPanel({
       setContent(data.content)
       setRelatedConcepts(data.related_concepts || [])
     } catch {
-      setContent('Unable to generate explanation.')
+      setContent('Unable to generate explanation. Please try again.')
     } finally {
       setLoading(false)
     }
@@ -72,10 +72,15 @@ export default function ExplanationPanel({
         {loading ? (
           <div className="panel-loading">
             <div className="spinner small" />
+            <p className="loading-text">Generating explanation...</p>
           </div>
         ) : (
           <>
-            <p>{content}</p>
+            <div className="explanation-text">
+              {content?.split('\n').map((line, i) => (
+                line.trim() ? <p key={i}>{line}</p> : null
+              ))}
+            </div>
             {relatedConcepts.length > 0 && (
               <div className="related-concepts">
                 <span className="related-label">Related: </span>

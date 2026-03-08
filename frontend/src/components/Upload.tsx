@@ -1,9 +1,11 @@
 import { useState, useRef } from 'react'
-import { uploadPdf } from '../services/api'
+import { uploadFile } from '../services/api'
 
 interface Props {
   onComplete: (data: any) => void
 }
+
+const ALLOWED_EXTENSIONS = ['.pdf', '.epub']
 
 export default function Upload({ onComplete }: Props) {
   const [dragging, setDragging] = useState(false)
@@ -12,14 +14,15 @@ export default function Upload({ onComplete }: Props) {
   const fileRef = useRef<HTMLInputElement>(null)
 
   async function handleFile(file: File) {
-    if (!file.name.toLowerCase().endsWith('.pdf')) {
-      setError('Please upload a PDF file.')
+    const ext = file.name.toLowerCase().slice(file.name.lastIndexOf('.'))
+    if (!ALLOWED_EXTENSIONS.includes(ext)) {
+      setError('Please upload a PDF or EPUB file.')
       return
     }
     setError(null)
     setUploading(true)
     try {
-      const data = await uploadPdf(file)
+      const data = await uploadFile(file)
       onComplete(data)
     } catch (e: any) {
       setError(e.message || 'Upload failed.')
@@ -63,8 +66,8 @@ export default function Upload({ onComplete }: Props) {
             </div>
           ) : (
             <>
-              <p className="drop-text">Drop a PDF here, or click to browse</p>
-              <p className="drop-hint">Philosophy, economics, research papers, and more</p>
+              <p className="drop-text">Drop a book here, or click to browse</p>
+              <p className="drop-hint">Supports PDF and EPUB formats</p>
             </>
           )}
         </div>
@@ -74,7 +77,7 @@ export default function Upload({ onComplete }: Props) {
         <input
           ref={fileRef}
           type="file"
-          accept=".pdf"
+          accept=".pdf,.epub"
           onChange={onFileSelect}
           hidden
         />

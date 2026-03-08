@@ -1,12 +1,10 @@
 """Simple session state persistence.
 
 Stores session data as JSON files on disk. Each session represents
-one reader + one document. This is adequate for local MVP usage.
-Replace with a database for production.
+one reader + one document.
 """
 
 import json
-import os
 import uuid
 from pathlib import Path
 from dataclasses import dataclass, field, asdict
@@ -22,8 +20,10 @@ class Session:
     pdf_path: str
     concepts: list[dict] = field(default_factory=list)
     dependency_graph: dict = field(default_factory=dict)
+    concept_map: dict = field(default_factory=dict)
     calibration_questions: list[dict] = field(default_factory=list)
     reader_profile: dict = field(default_factory=dict)
+    book_metadata: dict = field(default_factory=dict)
     current_page: int = 1
     highlights: list[dict] = field(default_factory=list)
 
@@ -58,5 +58,9 @@ def list_sessions() -> list[dict]:
     for path in SESSIONS_DIR.glob("*.json"):
         with open(path) as f:
             data = json.load(f)
-        sessions.append({"id": data["id"], "document_name": data["document_name"]})
+        sessions.append({
+            "id": data["id"],
+            "document_name": data["document_name"],
+            "book_metadata": data.get("book_metadata", {}),
+        })
     return sessions
