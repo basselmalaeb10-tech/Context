@@ -21,7 +21,7 @@ app = FastAPI(title="Context — AI Reading Assistant")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://localhost:8000"],
+    allow_origins=["*"],
     allow_methods=["*"],
     allow_headers=["*"],
 )

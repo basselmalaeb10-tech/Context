@@ -1,0 +1,6 @@
+services:
+  - type: web
+    name: context-reading-assistant
+    runtime: docker
+    plan: free
+    healthCheckPath: /api/health
